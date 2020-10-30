@@ -21,17 +21,23 @@
 (defn star? [loc]
   (= (z/node loc) "*"))
 
+(defn add-parent-star [tree]
+  ["*" tree])
+
+(defn add-parent-stars [tree p]
+  (do-n-times tree p add-parent-star))
+
 (defn pqgram [original p q]
   (loop [loc  original]
     (cond
       (z/end? loc)
-      (z/root loc)
+      (add-parent-stars (z/root loc) p)
 
       (or (root? loc) (star? loc))
       (recur (z/next loc))
 
       (z/branch? loc)
-      (recur (z/next (add-siblings loc (- p 1))))
+      (recur (z/next (add-siblings loc (- q 1))))
 
       :else (recur (z/next (add-leafs loc q))))))
 
@@ -47,15 +53,3 @@
       p 2
       q 1]
   (pqgram root-loc p q))
-
-
-
-
-
-
-
-
-
-
-
-
