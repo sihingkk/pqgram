@@ -14,7 +14,7 @@
 (defn root? [loc]
   (= (z/node loc) (z/root loc)))
 
-(defn add-siblings [loc n]
+(defn surround-siblings [loc n]
   (-> loc
       (do-n-times n #(z/insert-left % "*"))
       (do-n-times n #(z/insert-right % "*"))))
@@ -28,27 +28,6 @@
 (defn add-parent-stars [tree p]
   (do-n-times tree p add-parent-star))
 
-(defn pqgram [original p q]
-  (loop [loc  original]
-    (cond
-      (z/end? loc)
-      (add-parent-stars (z/root loc) (dec p))
-
-      (or (root? loc) (star? loc))
-      (recur (z/next loc))
-
-      (z/branch? loc)
-      (recur (z/next (add-siblings loc (dec q))))
-
-      :else (recur (z/next (add-leafs loc q))))))
-
-(defn btree-zipper [btree]
-  (z/zipper vector?
-            rest
-            (fn [[x _ _] children]
-              (vec (cons x children)))
-            btree))
-
 (defn node->value [node] 
   (if (vector? node) (first node) node))
 
@@ -58,42 +37,54 @@
   (conj (->> loc z/path (mapv node->value))
         (-> loc  z/node node->value)))
 
-(defn take-n-children [n loc] 
-  (->> loc z/children (map node->value) (take n)))
+(defn take-consecutive-children [n loc] 
+ (partition n (->> loc z/children (map node->value))))
 
 (defn prepend [path tails]
-  (map #(conj path %) tails))
+  (map #(concat path %) tails))
 
 (defn take-n-parents [n loc]
   (->> loc full-path (take-last n) vec))
 
+(defn extend-tree [zipper p q]
+  (fn [tree]
+    (loop [loc (zipper tree)]
+      (cond
+        (z/end? loc)
+        (add-parent-stars (z/root loc) (dec p))
 
-(defn pq-gram-multisets 
-  ([tree p q] 
-   (pq-gram-multisets 
-    (btree-zipper (pqgram (btree-zipper tree) p q)) (ms/multiset) p q))
-  
-  ([loc result p q] 
-   (cond
-     (z/end? loc)
-     result
+        (or (root? loc) (star? loc))
+        (recur (z/next loc))
 
-     (not (z/branch? loc))
-     (recur (z/next loc) result p q)
+        (z/branch? loc)
+        (recur (z/next (surround-siblings loc (dec q))))
 
-     :else (let [subpaths    (->> loc
-                                  (take-n-children 100) ;; FIXME
-                                  (prepend (take-n-parents p loc))
-                                  (filter #(= (+ p 1) (count %))))
-                 result'  (apply conj result subpaths)]
-             (recur (z/next loc) result' p q)))))
+        :else (recur (z/next (add-leafs loc q)))))))
 
-(defn dinstance [x y p q]
-  (let [xs (pq-gram-multisets x p q)
-        ys (pq-gram-multisets y p q)
-        intersection (count (ms/intersect xs ys))
-        union (count (ms/sum xs ys))]
-    (/ (- union (* 2 intersection))
-       (- union intersection))))
-    
+(defn pq-grams [zipper p q]
+  (fn [tree]
+    (loop [loc  (zipper ((extend-tree zipper p q) tree))
+           result (ms/multiset)]
+      (cond
+        (z/end? loc)
+        result
 
+        (not (z/branch? loc))
+        (recur (z/next loc) result)
+
+        :else (let [subpaths    (->> loc
+                                     (take-consecutive-children q) ;; FIXME
+                                     (prepend (take-n-parents p loc))
+                                     (filter #(= (+ p q) (count %))))
+                    result'  (apply conj result subpaths)]
+                (recur (z/next loc) result'))))))
+
+(defn pq-gram-distance [zipper p q]
+  (fn [x y]
+    (let [pq-grams' (pq-grams zipper p q)
+          xs (pq-grams' x)
+          ys (pq-grams' y)
+          intersection (count (ms/intersect xs ys))
+          union (count (ms/sum xs ys))]
+      (/ (- union (* 2 intersection))
+         (- union intersection)))))
