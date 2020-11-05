@@ -31,13 +31,13 @@
   (loop [loc  original]
     (cond
       (z/end? loc)
-      (add-parent-stars (z/root loc) p)
+      (add-parent-stars (z/root loc) (dec p))
 
       (or (root? loc) (star? loc))
       (recur (z/next loc))
 
       (z/branch? loc)
-      (recur (z/next (add-siblings loc (- q 1))))
+      (recur (z/next (add-siblings loc (dec q))))
 
       :else (recur (z/next (add-leafs loc q))))))
 
@@ -48,8 +48,47 @@
               (vec (cons x children)))
             btree))
 
-(let [btree ["a" ["b"  "c"] ["b"  "d"  "c"]  "e"]
-      root-loc (btree-zipper btree)
-      p 2
-      q 1]
-  (pqgram root-loc p q))
+(defn node->value [node] 
+  (if (vector? node) (first node) node))
+
+(def loc->value (comp z/node node->value))
+
+(defn full-path [loc]
+  (conj (->> loc z/path (mapv node->value))
+        (-> loc  z/node node->value)))
+
+(defn take-n-children [n loc] 
+  (->> loc z/children (map node->value) (take n)))
+
+(defn prepend [path tails]
+  (map #(conj path %) tails))
+
+(defn take-n-parents [n loc]
+  (->> loc full-path (take-last n) vec))
+
+(defn n-paths 
+  ([loc p q] 
+   (n-paths loc #{} p q))
+  
+  ([loc result p q] 
+   (cond
+     (z/end? loc)
+     result
+
+     (not (z/branch? loc))
+     (recur (z/next loc) result p q)
+
+     :else (let [ subpaths    (->> loc
+                                  (take-n-children q)
+                                  (prepend (take-n-parents p loc))
+                                  (filter #(= (+ p 1) (count %))))
+                 result'  (apply conj result subpaths)]
+             (recur (z/next loc) result' p q)))))
+
+(let [p 2
+      q 1
+      tree ["a" ["b"  "c"] ["b"  "d"  "c"]  "e"]
+      tree*  (btree-zipper (pqgram (btree-zipper tree) p q))]
+  (n-paths  tree* p q))
+
+
