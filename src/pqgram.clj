@@ -75,7 +75,7 @@
 
         :else
         (recur (z/next loc) 
-               (concat result
+               (apply conj result
                        (->> (prepend
                              (take-n-parents-child-path p loc)
                              (take-consecutive-children q loc))
