@@ -28,7 +28,7 @@
 (defn add-parent-stars [tree p]
   (do-n-times tree p add-parent-star))
 
-(defn node->value [node] 
+(defn node->value [node]
   (if (vector? node) (first node) node))
 
 (def loc->value (comp z/node node->value))
@@ -37,8 +37,8 @@
   (conj (->> loc z/path (mapv node->value))
         (-> loc  z/node node->value)))
 
-(defn take-consecutive-children [n loc] 
- (partition n (->> loc z/children (map node->value))))
+(defn take-consecutive-children [n loc]
+  (partition n (->> loc z/children (map node->value))))
 
 (defn prepend [path tails]
   (map #(concat path %) tails))
@@ -59,7 +59,8 @@
         (z/branch? loc)
         (recur (z/next (surround-siblings loc (dec q))))
 
-        :else (recur (z/next (add-leafs loc q)))))))
+        :else 
+        (recur (z/next (add-leafs loc q)))))))
 
 (defn pq-grams [zipper p q]
   (fn [tree]
@@ -72,12 +73,13 @@
         (not (z/branch? loc))
         (recur (z/next loc) result)
 
-        :else (let [subpaths    (->> loc
-                                     (take-consecutive-children q) ;; FIXME
-                                     (prepend (take-n-parents p loc))
-                                     (filter #(= (+ p q) (count %))))
-                    result'  (apply conj result subpaths)]
-                (recur (z/next loc) result'))))))
+        :else
+        (let [subpaths (->> loc
+                            (take-consecutive-children q)
+                            (prepend (take-n-parents p loc))
+                            (filter #(= (+ p q) (count %))))
+              result'  (apply conj result subpaths)]
+          (recur (z/next loc) result'))))))
 
 (defn pq-gram-distance [zipper p q]
   (fn [x y]
