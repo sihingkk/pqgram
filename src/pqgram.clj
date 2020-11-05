@@ -65,17 +65,17 @@
 (defn pq-grams [zipper p q]
   (fn [tree]
     (loop [loc  (zipper ((extend-tree zipper p q) tree))
-           result (ms/multiset)]
+           acc (ms/multiset)]
       (cond
         (z/end? loc)
-        result
+        acc
 
         (not (z/branch? loc))
-        (recur (z/next loc) result)
+        (recur (z/next loc) acc)
 
         :else
         (recur (z/next loc) 
-               (apply conj result
+               (apply conj acc
                        (->> (prepend
                              (take-n-parents-child-path p loc)
                              (take-consecutive-children q loc))
