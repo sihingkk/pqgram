@@ -78,7 +78,7 @@
                             (take-consecutive-children q)
                             (prepend (take-n-parents p loc))
                             (filter #(= (+ p q) (count %))))
-              result'  (apply conj result subpaths)]
+              result'  (concat result subpaths)]
           (recur (z/next loc) result'))))))
 
 (defn pq-gram-distance [zipper p q]
