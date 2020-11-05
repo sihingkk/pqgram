@@ -7,7 +7,7 @@
 
 (defn add-leafs [loc n]
   (-> loc
-      (z/edit vector)
+      (z/edit vector) ;; TODO: make that injectable
       (do-n-times n #(z/insert-child % "*"))
       (do-n-times n z/next)))
 
@@ -22,7 +22,7 @@
 (defn star? [loc]
   (= (z/node loc) "*"))
 
-(defn add-parent-star [tree]
+(defn add-parent-star [tree] ;; TODO: make that injectable
   ["*" tree])
 
 (defn add-parent-stars [tree p]
@@ -40,10 +40,10 @@
 (defn take-consecutive-children [n loc]
   (partition n (->> loc z/children (map node->value))))
 
-(defn prepend [path tails]
-  (map #(concat path %) tails))
+(defn prepend [v v']
+  (map #(concat v %) v'))
 
-(defn take-n-parents [n loc]
+(defn take-n-parents-child-path [n loc]
   (->> loc full-path (take-last n) vec))
 
 (defn extend-tree [zipper p q]
@@ -74,12 +74,12 @@
         (recur (z/next loc) result)
 
         :else
-        (let [subpaths (->> loc
-                            (take-consecutive-children q)
-                            (prepend (take-n-parents p loc))
-                            (filter #(= (+ p q) (count %))))
-              result'  (concat result subpaths)]
-          (recur (z/next loc) result'))))))
+        (recur (z/next loc) 
+               (concat result
+                       (->> (prepend
+                             (take-n-parents-child-path p loc)
+                             (take-consecutive-children q loc))
+                            (filter #(= (+ p q) (count %))))))))))
 
 (defn pq-gram-distance [zipper p q]
   (fn [x y]
