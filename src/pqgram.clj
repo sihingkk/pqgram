@@ -1,5 +1,6 @@
 (ns pqgram
-  (:require [clojure.zip :as z]))
+  (:require [clojure.zip :as z]
+            [multiset.core :as ms]))
 
 (defn do-n-times [loc n f]
   (nth (iterate f loc) n))
@@ -66,9 +67,11 @@
 (defn take-n-parents [n loc]
   (->> loc full-path (take-last n) vec))
 
-(defn n-paths 
-  ([loc p q] 
-   (n-paths loc #{} p q))
+
+(defn pq-gram-multisets 
+  ([tree p q] 
+   (pq-gram-multisets 
+    (btree-zipper (pqgram (btree-zipper tree) p q)) (ms/multiset) p q))
   
   ([loc result p q] 
    (cond
@@ -78,17 +81,19 @@
      (not (z/branch? loc))
      (recur (z/next loc) result p q)
 
-     :else (let [ subpaths    (->> loc
-                                  (take-n-children q)
+     :else (let [subpaths    (->> loc
+                                  (take-n-children 100) ;; FIXME
                                   (prepend (take-n-parents p loc))
                                   (filter #(= (+ p 1) (count %))))
                  result'  (apply conj result subpaths)]
              (recur (z/next loc) result' p q)))))
 
-(let [p 2
-      q 1
-      tree ["a" ["b"  "c"] ["b"  "d"  "c"]  "e"]
-      tree*  (btree-zipper (pqgram (btree-zipper tree) p q))]
-  (n-paths  tree* p q))
-
+(defn dinstance [x y p q]
+  (let [xs (pq-gram-multisets x p q)
+        ys (pq-gram-multisets y p q)
+        intersection (count (ms/intersect xs ys))
+        union (count (ms/sum xs ys))]
+    (/ (- union (* 2 intersection))
+       (- union intersection))))
+    
 

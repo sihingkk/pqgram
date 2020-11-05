@@ -1,22 +1,19 @@
 (ns pqgram-test
   (:require [pqgram :refer :all]
-            [clojure.test :refer :all]
-             [clojure.spec.alpha :as s]))
+            [clojure.test :refer :all]            
+            [multiset.core :as ms]))
 
-(deftest adding-numbers
-  (is (= 4 (plus 2 2))))
+(def tree-A ["a" ["b"  "c"] ["b"  "d"  "c"]  "e"])
+(def tree-B ["a" ["b" "e" "d"]])
 
-(deftest dividing-numbers
-  (is (= 2 (divide 4 2))))
+(deftest generating-multisets
+  (is (= 
+      (ms/multiset ["*" "a" "b"] ["*" "a" "b"] ["*" "a" "e"] ["a" "b" "c"] ["a" "b" "d"]
+                   ["a" "b" "c"] ["a" "e" "*"] ["b" "c" "*"] ["b" "d" "*"] ["b" "c" "*"])
+       (pq-gram-multisets tree-A 2 1)))
+ (is (=
+      (ms/multiset  ["*" "a" "b"] ["a" "b" "e"] ["a" "b" "d"] ["b" "e" "*"] ["b" "d" "*"])
+      (pq-gram-multisets tree-B 2 1))))
 
-(deftest dividing-numbers-by-zero
-  (is (thrown? ArithmeticException (divide 1 0))))
-
-
-(defn simple-fn []
-  "x")
-
-(s/fdef simple-fn :ret :simple/int)
-
-(deftest spec-fail-test
-  (is (= "x" (simple-fn)) "Just testing simple-fn"))
+(deftest dinstance-test 
+  (is (= 75/100 (dinstance tree-A tree-B 2 1))))
