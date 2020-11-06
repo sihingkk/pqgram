@@ -51,32 +51,31 @@
 
 (def leaf? (complement z/branch?))
 
-(defn extend-tree [zipper p q]
-  (fn [tree]
-    (loop [loc (zipper tree)]
-      (if (z/end? loc)
-        (add-parent-stars (z/root loc) (dec p))
-        (recur (z/next (cond
-                         (or (root? loc) (star? loc))
-                         loc
+(defn extend-tree [zipper p q tree]
+  (loop [loc (zipper tree)]
+    (if (z/end? loc)
+      (zipper (add-parent-stars (z/root loc) (dec p)))
+      (recur (z/next (cond
+                       (or (root? loc) (star? loc))
+                       loc
 
-                         (z/branch? loc)
-                         (surround-siblings loc (dec q))
+                       (z/branch? loc)
+                       (surround-siblings loc (dec q))
 
-                         :else
-                         (add-leafs loc q))))))))
+                       :else
+                       (add-leafs loc q)))))))
 
 (defn loc->pq-grams [loc p q]
   (if (leaf? loc)
     []
-    (->> (prepend
-          (take-n-parents-child-path p loc)
-          (take-consecutive-children q loc))
-         (filter (count= (+ p q))))))
+    (filter (count= (+ p q))
+            (prepend
+             (take-n-parents-child-path p loc)
+             (take-consecutive-children q loc)))))
 
 (defn pq-grams [zipper p q]
   (fn [tree]
-    (loop [loc  (zipper ((extend-tree zipper p q) tree))
+    (loop [loc (extend-tree zipper p q tree)
            acc (ms/multiset)]
      (if (z/end? loc)
        acc
@@ -84,11 +83,11 @@
               (apply conj acc (loc->pq-grams loc p q)))))))
 
 (defn pq-gram-distance [zipper p q]
-  (fn [x y]
+  (fn [xs ys]
     (let [pq-grams' (pq-grams zipper p q)
-          xs (pq-grams' x)
-          ys (pq-grams' y)
-          intersection (count (ms/intersect xs ys))
-          union (count (ms/sum xs ys))]
+          xs' (pq-grams' xs)
+          ys' (pq-grams' ys)
+          intersection (count (ms/intersect xs' ys'))
+          union (count (ms/sum xs' ys'))]
       (/ (- union (* 2 intersection))
          (- union intersection)))))
