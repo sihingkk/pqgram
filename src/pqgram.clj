@@ -46,40 +46,42 @@
 (defn take-n-parents-child-path [n loc]
   (->> loc full-path (take-last n) vec))
 
+(defn count= [n]
+  #(= n (count %)))
+
+(def leaf? (complement z/branch?))
+
 (defn extend-tree [zipper p q]
   (fn [tree]
     (loop [loc (zipper tree)]
-      (cond
-        (z/end? loc)
+      (if (z/end? loc)
         (add-parent-stars (z/root loc) (dec p))
+        (recur (z/next (cond
+                         (or (root? loc) (star? loc))
+                         loc
 
-        (or (root? loc) (star? loc))
-        (recur (z/next loc))
+                         (z/branch? loc)
+                         (surround-siblings loc (dec q))
 
-        (z/branch? loc)
-        (recur (z/next (surround-siblings loc (dec q))))
+                         :else
+                         (add-leafs loc q))))))))
 
-        :else 
-        (recur (z/next (add-leafs loc q)))))))
+(defn loc->pq-grams [loc p q]
+  (if (leaf? loc)
+    []
+    (->> (prepend
+          (take-n-parents-child-path p loc)
+          (take-consecutive-children q loc))
+         (filter (count= (+ p q))))))
 
 (defn pq-grams [zipper p q]
   (fn [tree]
     (loop [loc  (zipper ((extend-tree zipper p q) tree))
            acc (ms/multiset)]
-      (cond
-        (z/end? loc)
-        acc
-
-        (not (z/branch? loc))
-        (recur (z/next loc) acc)
-
-        :else
-        (recur (z/next loc) 
-               (apply conj acc
-                       (->> (prepend
-                             (take-n-parents-child-path p loc)
-                             (take-consecutive-children q loc))
-                            (filter #(= (+ p q) (count %))))))))))
+     (if (z/end? loc)
+       acc
+       (recur (z/next loc) 
+              (apply conj acc (loc->pq-grams loc p q)))))))
 
 (defn pq-gram-distance [zipper p q]
   (fn [x y]
