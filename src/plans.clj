@@ -5,9 +5,9 @@
   (:import (java.net URI)))
 
 (def local-db
-  (db/connect (URI. "neo4j+s://e605d648.databases.neo4j.io")
-              "human"
-              "RaJ2UGdGmtVJrtraXm@9"))
+  (db/connect (URI. "")
+              ""
+              ""))
 
 (db/defquery root-operator
   "MATCH (testRun:TestRun {id:$id})-[:HAS_METRICS]->(metrics:Metrics)-[:HAS_PLAN]->(plan:Plan),
