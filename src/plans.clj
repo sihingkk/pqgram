@@ -37,7 +37,7 @@
 
 (defn find-test-run-ids [{:keys [commit group-name]}]
   (with-open [session (db/get-session local-db)]
-    (doall  (mapv :id (test-run-ids session {:commit commit :name group-name})))))
+    (doall (mapv :id (test-run-ids session {:commit commit :name group-name})))))
 
 (defn tree
 
@@ -62,11 +62,12 @@
 (defn ->tree [test-run-id]
   (tree (root test-run-id)))
 
-
-(let [tr-ids (find-test-run-ids {:commit "0b7d6e27a7cd0534b1a9f27607b1b99ab6444774"
-                                 :group-name "accesscontrol"})
-      example (->tree (last tr-ids))
-      to-compare (map ->tree (take 5 tr-ids))]
-  (->> to-compare 
-     (map (fn [t] (d example t)))))
+(defn main []
+  (time 
+   (let [tr-ids (find-test-run-ids {:commit "0b7d6e27a7cd0534b1a9f27607b1b99ab6444774"
+                                    :group-name "accesscontrol"})
+         example (->tree (last tr-ids))
+         to-compare (map ->tree (take 5 tr-ids))]
+     (->> to-compare 
+          (map (fn [t] (d example t)))))))
 
