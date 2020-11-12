@@ -1,13 +1,8 @@
 (ns plans
   (:require [pqgram :refer [pq-gram-distance]]
             [neo4j-clj.core :as db]
-            [clojure.zip :as z])
-  (:import (java.net URI)))
-
-(def local-db
-  (db/connect (URI. "")
-              ""
-              ""))
+            [db :refer [local-db]]
+            [clojure.zip :as z]))
 
 (db/defquery root-operator
   "MATCH (testRun:TestRun {id:$id})-[:HAS_METRICS]->(metrics:Metrics)-[:HAS_PLAN]->(plan:Plan),
@@ -37,7 +32,7 @@
 
 (defn find-test-run-ids [{:keys [commit group-name]}]
   (with-open [session (db/get-session local-db)]
-    (doall (mapv :id (test-run-ids session {:commit commit :name group-name})))))
+    (doall  (mapv :id (test-run-ids session {:commit commit :name group-name})))))
 
 (defn tree
 
@@ -48,7 +43,7 @@
    (let [children (children-by-id  id)]
      (if (empty? children)
        name
-       (vec (concat acc [name] (mapv #(tree % []) children)))))))
+       (vec (concat acc [name] (mapv tree children)))))))
 
 (defn tree-zipper [tree]
   (z/zipper vector?
@@ -62,12 +57,11 @@
 (defn ->tree [test-run-id]
   (tree (root test-run-id)))
 
-(defn main []
-  (time 
-   (let [tr-ids (find-test-run-ids {:commit "0b7d6e27a7cd0534b1a9f27607b1b99ab6444774"
-                                    :group-name "accesscontrol"})
-         example (->tree (last tr-ids))
-         to-compare (map ->tree (take 5 tr-ids))]
-     (->> to-compare 
-          (map (fn [t] (d example t)))))))
+
+(let [tr-ids (find-test-run-ids {:commit "0b7d6e27a7cd0534b1a9f27607b1b99ab6444774"
+                                 :group-name "accesscontrol"})
+      example (->tree (last tr-ids))
+      to-compare (map ->tree (take 5 tr-ids))]
+  (->> to-compare 
+     (map (fn [t] (d example t)))))
 
