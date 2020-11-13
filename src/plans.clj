@@ -5,6 +5,16 @@
             [pqgram.db :refer [local-db]]
             [clojure.zip :as z]))
 
+(db/defquery macro-group-names-query
+  "MATCH (group:BenchmarkGroup)-[]-(tool:BenchmarkTool {name: \"macro\"})
+   RETURN group.name as group")
+
+
+(defn macro-group-names []
+  (with-open [session (db/get-session local-db)]
+    (doall  (mapv :group (macro-group-names-query session {})))))
+
+
 (db/defquery hash->benchmark-query
   "MATCH (m:Metrics)-[:METRICS_FOR]->(b:Benchmark )<-[:HAS_BENCHMARK]-(bg:BenchmarkGroup),
    (m:Metrics)-[:HAS_PLAN]->(plan:Plan)-[:HAS_PLAN_TREE]->(tree:PlanTree {description_hash: $hash})
@@ -26,13 +36,6 @@
   (with-open [session (db/get-session local-db)]
     (doall  (mapv :id (tree-hash session {:commit commit :name group-name})))))
 
-(comment (find-tree-hash  {:commit "0b7d6e27a7cd0534b1a9f27607b1b99ab6444774"
-                           :group-name "ldbc_sf010"}))
-
-(defn find-test-run-ids [{:keys [commit group-name]}]
-  (with-open [session (db/get-session local-db)]
-    (doall  (mapv :id (test-run-ids session {:commit commit :name group-name})))))
-
 (defn tree-zipper [tree]
   (z/zipper vector?
             rest
@@ -41,11 +44,6 @@
             tree))
 
 (def d (pq-gram-distance tree-zipper 3 2))
-
-(def example-id
-  (first (find-test-run-ids {:commit "0b7d6e27a7cd0534b1a9f27607b1b99ab6444774"
-                             :group-name "accesscontrol"})))
-
 
 (db/defquery operator-paths
   "MATCH (tree:PlanTree {description_hash: $id})-[:HAS_OPERATORS]->(root:Operator),
@@ -99,12 +97,12 @@
        name
        (vec (concat acc [name] (mapv #(->tree' db %) children)))))))
 
-(defn test-run-id->tree [test-run-id]
-  (let [paths (find-operator-paths test-run-id)
+(defn plan-hash->tree [plan-hash]
+  (let [paths (find-operator-paths plan-hash)
         db  (->> paths
                  (mapcat path->pair)
                  (distinct))]
-    [test-run-id (->tree' db (ffirst db))]))
+    [plan-hash (->tree' db (ffirst db))]))
 
 
 (db/defquery query-plan-txt
@@ -116,28 +114,24 @@
   (with-open [session (db/get-session local-db)]
     (first  (map :description  (query-plan-txt session {:hash hash})))))
 
-(defn top-similar [n tree-hashes]
-  (doall (let [trees  (map test-run-id->tree tree-hashes)]
-           (println "count of trees: " (count trees))
-           (for [[test-run-id left] trees]
-             {:test-run-id test-run-id
-              :similar (->> trees
-                            (map
-                             (fn [[test-run-id right]]
-                               [test-run-id (d left right)]))
-                            (sort-by second)
-                            (reverse)
-                            #_(filter #(not= (second %) 1))
-                            (take n)
-                            (filter #(not= (first %) test-run-id)))}))))
+(defn top-similar [n trees]
+  (for [[plan-hash left] trees]
+    {:plan-hash plan-hash
+     :similar (->> trees
+                   (map
+                    (fn [[plan-hash right]]
+                      [plan-hash (d left right)]))
+                   (sort-by second)
+                   (reverse)
+                   (take n)
+                   (filter #(not= (first %) plan-hash)))}))
 
 
 (defn num->str [num]
   (let [s (str (double num))]
-    (if (> 4 (count s))  
+    (if (> 4 (count s))
       s
-      (subs s 0 4)
-      )))
+      (subs s 0 4))))
 
 (defn spit-parent [group  left-hash]
   (let [file-name (str "/Users/chrisk/temp/" group "/" left-hash "/" "__" left-hash ".txt")]
@@ -150,55 +144,18 @@
     (make-parents file-name)
     (spit file-name (find-query-plan-txt right-hash))))
 
-(def groups [
-"logistics"
-"grid"
-"nexlp"
-"levelstory"
-"elections"
-"cineasts"
-"accesscontrol"
-"recommendations"
-"socialnetwork"
-"index_backed_order_by"
-"bubble_eye"
-"musicbrainz"
-"qmul_read"
-"qmul_write"
-"ldbc_sf001"
-"ldbc_sf010"
-"pokec_read"
-"generatedmusicdata_read"
-"osmnodes"
-"cineasts_csv"
-"generatedmusicdata_write"
-"pokec_write"
-"generated_queries"
-"ldbc_ish"
-"zero"
-"ldbc_ish_sf010"
-"offshore_leaks"
-"alacrity"
-"fraud-poc-credit"
-"fraud-poc-aml"
-"ciena"             
-           ])
 
-(comment
-  (doseq [group-name groups]
+(defn run! []
+  (doseq [group-name (macro-group-names)]
     (println "processing " group-name)
-    (let [result (top-similar 100 (find-tree-hash {:commit "0b7d6e27a7cd0534b1a9f27607b1b99ab6444774"
-                                                   :group-name group-name}))]
-      
-      (doseq [{:keys [test-run-id similar]} result]
-        (spit-parent group-name test-run-id)
+    (let [result
+          (->> {:commit "0b7d6e27a7cd0534b1a9f27607b1b99ab6444774"
+                :group-name group-name}
+               (find-tree-hash)
+               (map plan-hash->tree)
+               (top-similar 100))]
+
+      (doseq [{:keys [plan-hash similar]} result]
+        (spit-parent group-name plan-hash)
         (doseq [[hash similarity] similar]
-          (spit-child group-name similarity test-run-id hash)) 
-        )))
-  
-  )
-
-(spit-parent "ldbc" "92d6eb754c3825cc29f79e1a41edc7d350860b8e74a6ae37a18306a027cc0759")
-
-
-(spit-child "ldbc" 59/60 "92d6eb754c3825cc29f79e1a41edc7d350860b8e74a6ae37a18306a027cc0759" "993081a2933245aab57002e25b41fce0a76e3e0599b0d8e3772a0750be893b48")
+          (spit-child group-name similarity plan-hash hash))))))
